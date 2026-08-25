@@ -1,25 +1,121 @@
 <!DOCTYPE html>
-<html lang="en-us">
-
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <title>BitLife FULLSCREEN Online</title>
-  <link rel="canonical" href="https://bitlifefree.online" />
-  <link rel="stylesheet" href="style.css" />
-  <script src="TemplateData/UnityProgress.js"></script>
-  <script src="Build/UnityLoader.js"></script>
-  <script type="application/javascript" src="/js/main.js"></script>
-  <script>
-    var unityInstance = UnityLoader.instantiate("gameContainer", "Build/BitLife.json", { onProgress: UnityProgress });
-  </script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Star Wars: A Galactic Life</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%E2%9A%94%EF%B8%8F</text></svg>">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-  <div class="webgl-content">
-    <!-- WEBGL GAME IN FULLSCREEN - COPY AND PASTE THIS CSS - IMPORTANT: WIDTH: 100%; HEIGHT:100% -->
-    <div id="gameContainer" style="width: 100%; height: 100%;"></div>
-  </div>
-</body>
+<div id="app">
 
+  <header id="topbar">
+    <h1>STAR WARS <span>— A GALACTIC LIFE</span></h1>
+    <div id="topbar-actions">
+      <button id="btn-new-life" class="btn-ghost">New Life</button>
+    </div>
+  </header>
+
+  <!-- ============ CHARACTER CREATION ============ -->
+  <section id="creation-screen">
+    <div class="creation-card">
+      <p class="quote" id="loading-quote"></p>
+      <h2>Begin a New Life</h2>
+
+      <label>Era of Birth
+        <select id="sel-era"></select>
+      </label>
+      <p class="blurb" id="era-blurb"></p>
+
+      <label>Species
+        <select id="sel-species"></select>
+      </label>
+      <p class="blurb" id="species-blurb"></p>
+
+      <label>Homeworld
+        <select id="sel-homeworld"></select>
+      </label>
+      <p class="blurb" id="homeworld-blurb"></p>
+
+      <label>Gender
+        <select id="sel-gender">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </label>
+
+      <label>First Name (optional)
+        <input id="inp-first" type="text" placeholder="Random">
+      </label>
+      <label>Surname (optional)
+        <input id="inp-last" type="text" placeholder="Random">
+      </label>
+
+      <button id="btn-start" class="btn-primary">Enter the Galaxy</button>
+      <button id="btn-continue" class="btn-ghost" hidden>Continue Saved Life</button>
+    </div>
+  </section>
+
+  <!-- ============ MAIN GAME SCREEN ============ -->
+  <section id="game-screen" hidden>
+
+    <div id="statbar">
+      <div id="statbar-top">
+        <div id="char-identity">
+          <span id="char-name"></span>
+          <span id="char-sub"></span>
+        </div>
+        <div id="char-credits"></div>
+      </div>
+      <div id="stat-bars"></div>
+      <div id="align-bar-wrap">
+        <div class="align-label"><span>DARK SIDE</span><span>LIGHT SIDE</span></div>
+        <div class="align-track"><div id="align-fill"></div><div id="align-marker"></div></div>
+      </div>
+    </div>
+
+    <nav id="tabs">
+      <button class="tab-btn active" data-tab="life">Life</button>
+      <button class="tab-btn" data-tab="career">Career</button>
+      <button class="tab-btn" data-tab="force">Force</button>
+      <button class="tab-btn" data-tab="relationships">Relations</button>
+      <button class="tab-btn" data-tab="assets">Assets</button>
+      <button class="tab-btn" data-tab="crime">Crime</button>
+      <button class="tab-btn" data-tab="travel">Travel</button>
+      <button class="tab-btn" data-tab="bio">Bio</button>
+    </nav>
+
+    <main id="tab-content"></main>
+
+    <div id="action-bar">
+      <button id="btn-age-up" class="btn-primary btn-big">Age Up</button>
+    </div>
+  </section>
+
+  <!-- ============ CHOICE MODAL ============ -->
+  <div id="choice-modal" hidden>
+    <div class="modal-card">
+      <p id="choice-text"></p>
+      <div id="choice-options"></div>
+    </div>
+  </div>
+
+  <!-- ============ DEATH SCREEN ============ -->
+  <div id="death-screen" hidden>
+    <div class="modal-card">
+      <h2>End of Life</h2>
+      <p id="death-summary"></p>
+      <div id="death-stats"></div>
+      <button id="btn-restart" class="btn-primary">Begin a New Life</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/events.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+</body>
 </html>
