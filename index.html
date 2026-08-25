@@ -1,25 +1,128 @@
 <!DOCTYPE html>
 <html lang="en-us">
-
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <title>BitLife FULLSCREEN Online</title>
-  <link rel="canonical" href="https://bitlifefree.online" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Star Wars: A Galaxy Life</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="TemplateData/UnityProgress.js"></script>
-  <script src="Build/UnityLoader.js"></script>
-  <script type="application/javascript" src="/js/main.js"></script>
-  <script>
-    var unityInstance = UnityLoader.instantiate("gameContainer", "Build/BitLife.json", { onProgress: UnityProgress });
-  </script>
 </head>
-
 <body>
-  <div class="webgl-content">
-    <!-- WEBGL GAME IN FULLSCREEN - COPY AND PASTE THIS CSS - IMPORTANT: WIDTH: 100%; HEIGHT:100% -->
-    <div id="gameContainer" style="width: 100%; height: 100%;"></div>
-  </div>
-</body>
 
+  <!-- ============ SETUP SCREEN ============ -->
+  <div id="setup-screen" class="screen">
+    <div class="setup-card">
+      <h1 class="title-crawl">STAR WARS</h1>
+      <h2 class="subtitle">A Galaxy Life</h2>
+      <p class="tagline">You will be born in a random era, as a random species, with a random destiny among the stars. Everything else is up to you.</p>
+
+      <label class="field-label" for="setup-first">First Name</label>
+      <input id="setup-first" class="field-input" type="text" placeholder="Leave blank for a random name" maxlength="20" />
+
+      <label class="field-label" for="setup-last">Last Name (optional)</label>
+      <input id="setup-last" class="field-input" type="text" placeholder="Leave blank for a random or single name" maxlength="20" />
+
+      <label class="field-label" for="setup-gender">Gender</label>
+      <select id="setup-gender" class="field-input">
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+        <option value="random" selected>Let the Force Decide</option>
+      </select>
+
+      <div class="setup-buttons">
+        <button id="btn-randomize" class="action-btn">🎲 Randomize Name</button>
+        <button id="btn-begin" class="action-btn primary">Begin Your Life</button>
+      </div>
+      <p class="fine-print">Your species, homeworld, era, family, and midichlorian count are all randomized at birth — every being has some measure of the Force within them, but only the fortunate few carry enough to be trained.</p>
+    </div>
+  </div>
+
+  <!-- ============ GAME SCREEN ============ -->
+  <div id="game-screen" class="screen hidden">
+    <header class="hud-header">
+      <div class="hud-title">STAR WARS <span>A Galaxy Life</span></div>
+      <div class="hud-credits-wrap">💳 <span id="hud-credits">0 cr</span></div>
+      <button id="btn-new-life" class="action-btn small danger">New Life</button>
+    </header>
+
+    <div class="game-body">
+      <aside class="sidebar">
+        <div class="portrait"></div>
+        <h2 id="hud-name" class="hud-name"></h2>
+        <div class="hud-line"><span>Age</span><strong id="hud-age"></strong></div>
+        <div class="hud-line"><span>Species</span><strong id="hud-species"></strong></div>
+        <div class="hud-line"><span>Homeworld</span><strong id="hud-homeworld"></strong></div>
+        <div class="hud-line"><span>Era</span><strong id="hud-era"></strong></div>
+        <div class="hud-line"><span>Occupation</span><strong id="hud-job"></strong></div>
+
+        <div class="stat-bars">
+          <div class="stat-row"><span class="stat-label">Health</span><div class="bar-track"><div id="bar-health" class="bar-fill health"></div></div><span id="val-health" class="stat-val"></span></div>
+          <div class="stat-row"><span class="stat-label">Happiness</span><div class="bar-track"><div id="bar-happiness" class="bar-fill happiness"></div></div><span id="val-happiness" class="stat-val"></span></div>
+          <div class="stat-row"><span class="stat-label">Smarts</span><div class="bar-track"><div id="bar-smarts" class="bar-fill smarts"></div></div><span id="val-smarts" class="stat-val"></span></div>
+          <div class="stat-row"><span class="stat-label">Looks</span><div class="bar-track"><div id="bar-looks" class="bar-fill looks"></div></div><span id="val-looks" class="stat-val"></span></div>
+        </div>
+
+        <div class="midi-block">
+          <div class="hud-line"><span>Midichlorians</span><strong id="hud-midi-count"></strong></div>
+          <span id="hud-midi-tier" class="tier-badge"></span>
+        </div>
+
+        <div id="force-block" class="force-block hidden">
+          <h3 class="section-title">The Force</h3>
+          <div class="hud-line"><span>Path</span><strong id="hud-force-path"></strong></div>
+          <div class="hud-line"><span>Force Power</span><strong id="hud-force-power"></strong></div>
+          <div class="bar-track wide"><div id="force-align-fill" class="bar-fill balanced"></div></div>
+          <div class="align-labels"><span>Dark Side</span><span>Light Side</span></div>
+        </div>
+
+        <button id="btn-age-up" class="age-up-btn">Age Up →</button>
+      </aside>
+
+      <main class="main-panel">
+        <nav class="tabs">
+          <button class="tab-btn active" data-tab="story">Story</button>
+          <button class="tab-btn" data-tab="activities">Activities</button>
+          <button class="tab-btn" data-tab="career">Career</button>
+          <button class="tab-btn" data-tab="relationships">Relationships</button>
+          <button class="tab-btn" data-tab="assets">Assets</button>
+        </nav>
+        <div id="panel-story" class="tab-panel"></div>
+        <div id="panel-activities" class="tab-panel hidden"></div>
+        <div id="panel-career" class="tab-panel hidden"></div>
+        <div id="panel-relationships" class="tab-panel hidden"></div>
+        <div id="panel-assets" class="tab-panel hidden"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ============ CHOICE MODAL ============ -->
+  <div id="choice-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2 id="choice-title" class="modal-title"></h2>
+      <p id="choice-text" class="modal-text"></p>
+      <div id="choice-options" class="choice-options"></div>
+    </div>
+  </div>
+
+  <!-- ============ DEATH SCREEN ============ -->
+  <div id="death-screen" class="screen hidden">
+    <div class="setup-card death-card">
+      <h1 class="title-crawl">THE END</h1>
+      <h2 id="death-name" class="subtitle"></h2>
+      <p id="death-cause" class="tagline death-cause"></p>
+      <div class="death-stats">
+        <div class="hud-line"><span>Age at Death</span><strong id="death-age"></strong></div>
+        <div class="hud-line"><span>Species</span><strong id="death-species"></strong></div>
+        <div class="hud-line"><span>Era</span><strong id="death-era"></strong></div>
+        <div class="hud-line"><span>Occupation</span><strong id="death-job"></strong></div>
+        <div class="hud-line"><span>Force Path</span><strong id="death-force"></strong></div>
+        <div class="hud-line"><span>Final Wealth</span><strong id="death-wealth"></strong></div>
+      </div>
+      <button id="btn-death-restart" class="action-btn primary">Begin a New Life</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+  <script src="ui.js"></script>
+</body>
 </html>
