@@ -26,7 +26,7 @@ function render() {
   el('hud-age').textContent = state.age;
   el('hud-species').textContent = sp.name;
   el('hud-homeworld').textContent = state.homeworld;
-  el('hud-era').textContent = era.name;
+  el('hud-era').textContent = `${era.name} (${formatYear(currentYear())})`;
   el('hud-job').textContent = state.jobTitle;
   el('hud-credits').textContent = fmtCredits(state.wealth);
 
@@ -78,7 +78,34 @@ function renderTab() {
   if (currentTab === 'career') renderCareer();
   if (currentTab === 'relationships') renderRelationships();
   if (currentTab === 'assets') renderAssets();
+  if (currentTab === 'encounters') renderEncounters();
 }
+
+function renderEncounters() {
+  const p = el('panel-encounters');
+  const list = eligibleCharacters();
+  let html = `<p class="muted">Year ${formatYear(currentYear())} &middot; ${state.canonMode === 'LEGEND' ? 'Legend Mode' : 'Canon Lock'}</p>`;
+  if (!list.length) {
+    html += '<p class="muted">No notable figures are within reach right now. Keep aging up — the galaxy is big.</p>';
+  } else {
+    html += '<div class="rel-list">';
+    list.forEach(c => {
+      const canDate = canRomanceCharacter(state.age, state.canonMode, c, currentYear());
+      html += `<div class="encounter-row">
+        <div class="encounter-name">${c.name}</div>
+        <div class="encounter-actions">
+          <button class="action-btn small" onclick="meetCharacter('${c.id}')">Meet</button>
+          ${c.verbs.train ? `<button class="action-btn small" onclick="trainWithCharacter('${c.id}')">Train</button>` : ''}
+          ${c.verbs.date ? `<button class="action-btn small" ${canDate ? '' : 'disabled'} onclick="dateCharacter('${c.id}')">Date</button>` : ''}
+          ${c.verbs.fight ? `<button class="action-btn small danger" onclick="fightCharacter('${c.id}')">Fight</button>` : ''}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  p.innerHTML = html;
+}
+function formatYear(y) { return y < 0 ? `${Math.abs(y)} BBY` : `${y} ABY`; }
 
 function renderStory() {
   const log = el('panel-story');
@@ -225,7 +252,8 @@ function beginLife() {
   const last = el('setup-last').value.trim();
   let gender = el('setup-gender').value;
   if (gender === 'random') gender = chance(0.5) ? 'male' : 'female';
-  newCharacter(first || null, last === '' ? undefined : last, gender);
+  const canonMode = el('setup-canon-mode').value;
+  newCharacter(first || null, last === '' ? undefined : last, gender, canonMode);
   currentTab = 'story';
   render();
   save();

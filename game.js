@@ -40,6 +40,10 @@ function speciesById(id) { return SPECIES.find(s => s.id === id); }
 function eraById(id) { return ERAS.find(e => e.id === id); }
 function jobById(id) { return JOBS.find(j => j.id === id); }
 
+/* ---------- flags (object map: state.flags[name] === true) ---------- */
+function hasFlag(name) { return !!(state && state.flags && state.flags[name]); }
+function addFlags(names) { if (!names) return; names.forEach(n => { state.flags[n] = true; }); }
+
 /* ---------- midichlorians / Force system ---------- */
 function rollMidichlorians(species) {
   const bonus = species.forceBonus || 0;
@@ -63,11 +67,16 @@ function classifyMidichlorians(count) {
 
 /* ---------- character generation ---------- */
 let state = null;
+const LEGACY_KEY = 'swgl_legacy_v1';
 
-function newCharacter(firstNameOverride, lastNameOverride, gender) {
+function eligibleOrigins(eraId, canonMode) {
+  return ORIGINS.filter(o => o.eras.includes(eraId) && (!o.legendOnly || canonMode === 'LEGEND'));
+}
+
+function newCharacter(firstNameOverride, lastNameOverride, gender, canonMode) {
   const era = pick(ERAS);
   const species = pickWeighted(SPECIES, s => s.weight);
-  const homeworld = pick(species.homeworlds);
+  let homeworld = pick(species.homeworlds);
   const midi = rollMidichlorians(species);
   const name = generateName(species, gender);
   const first = firstNameOverride || name.first;
@@ -75,6 +84,7 @@ function newCharacter(firstNameOverride, lastNameOverride, gender) {
 
   const lifespan = randInt(species.lifespan[0], species.lifespan[1]);
   const elderStart = Math.max(60, Math.round(lifespan * 0.78));
+  const birthYear = rollBirthYear(era.id);
 
   const baseStats = {
     health: clamp(70 + randInt(-10, 10), 10, 100),
@@ -88,9 +98,14 @@ function newCharacter(firstNameOverride, lastNameOverride, gender) {
   const father = generateParent(species, 'male');
   const siblings = generateSiblings(species);
 
+  const origin = pick(eligibleOrigins(era.id, canonMode));
+  if (origin && origin.worlds && origin.worlds.length) homeworld = pick(origin.worlds);
+
   state = {
     firstName: first, lastName: last, gender,
+    canonMode,
     speciesId: species.id, eraId: era.id, homeworld,
+    birthYear, originId: origin ? origin.id : null,
     lifespan, elderStart,
     age: 0, stage: 'baby',
     midichlorians: midi.count, forceTier: midi.tier,
@@ -103,15 +118,59 @@ function newCharacter(firstNameOverride, lastNameOverride, gender) {
     eventLog: [],
     flags: {},
     achievements: [],
+    firedGlobalEvents: [],
+    activeLegendArc: null,
+    completedLegendArcs: [],
+    arcProgress: {},
     alive: true, born: true,
     deathAge: null, deathCause: null,
   };
 
-  log(`You were born ${speciesArticle(species)} ${species.name} on ${homeworld}, during ${era.name}.`);
+  if (origin) {
+    addFlags(origin.flags);
+    log(origin.text);
+    if (origin.flags.includes('force_sensitive') || origin.flags.includes('jedi')) {
+      if (state.forceTier === 'Average') {
+        state.midichlorians = randInt(2500, 6000);
+        state.forceTier = classifyMidichlorians(state.midichlorians);
+      }
+    }
+    if (origin.flags.includes('jedi')) { state.forcePath = 'jedi'; state.forceRank = 'Youngling'; state.forceAlignment = 20; }
+    if (origin.flags.includes('inquisitor_trainee')) { state.forcePath = 'inquisitor'; state.forceRank = 'Inquisitor Trainee'; state.forceAlignment = -30; }
+    if (origin.flags.includes('sith_eternal')) { state.forceAlignment = -20; }
+    if (origin.flags.includes('slave')) state.arcProgress.slave = 0;
+    if (origin.flags.includes('mandalorian')) state.arcProgress.mando = 0;
+    if (origin.flags.includes('clone')) state.arcProgress.clone = 0;
+  } else {
+    log(`You were born ${speciesArticle(species)} ${species.name} on ${homeworld}, during ${era.name}.`);
+  }
   if (midi.tier !== 'Average') {
     log(`Something about you feels different — your midichlorian count reads unusually high (${midi.count}).`);
   }
+
+  const worldData = CANON_WORLDS.find(w => w.name === homeworld);
+  if (worldData && worldData.bonus) applyEffects(worldData.bonus);
+
+  applyLegacyBonus();
+
   return state;
+}
+
+function applyLegacyBonus() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return;
+    const legacy = JSON.parse(raw);
+    if (!legacy) return;
+    if (legacy.type === 'jedi_master') {
+      applyEffects({ smarts: 4, happiness: 4 });
+      log('Something about the way you move the Force feels... practiced, as if remembered from another life.');
+    } else if (legacy.type === 'sith_lord') {
+      applyEffects({ forcePower: 4 });
+      log('A cold, patient anger seems to have followed you into this life.');
+    }
+    localStorage.removeItem(LEGACY_KEY);
+  } catch (e) { /* ignore */ }
 }
 
 function speciesArticle(species) {
@@ -161,6 +220,7 @@ function applyEffects(effects) {
   if (effects.forcePower !== undefined) state.stats.forcePower = clamp(state.stats.forcePower + effects.forcePower, 0, 100);
   if (effects.wealth !== undefined) state.wealth = Math.max(0, state.wealth + effects.wealth);
   if (effects.alignment !== undefined) state.forceAlignment = clamp(state.forceAlignment + effects.alignment, -100, 100);
+  if (effects.flags_add) addFlags(effects.flags_add);
 }
 
 /* ---------- Force path rank progression ---------- */
@@ -385,24 +445,6 @@ function checkSpecialEvent() {
   const sp = currentSpecies();
   const f = state.flags;
 
-  if (state.forcePath === 'jedi' && state.eraId === 'fall-of-jedi' && !f.order66 && state.age >= 18 && chance(0.06)) {
-    f.order66 = true;
-    return {
-      title: 'Order 66',
-      text: `The clone troopers under your command suddenly turn their weapons on you without warning — an ancient order has been given to eliminate the Jedi.`,
-      options: [
-        { label: 'Fight your way out', run: () => {
-          if (chance(0.45)) { log('You cut down your attackers and fled into hiding, one of the few Jedi to survive the purge.'); f.survivedOrder66 = true; applyEffects({ health: -20, happiness: -20 }); }
-          else { killCharacter('Killed during the Jedi purge known as Order 66'); }
-        } },
-        { label: 'Flee and go into hiding', run: () => {
-          if (chance(0.6)) { log('You escaped into the Outer Rim, burying your lightsaber and your old identity.'); f.survivedOrder66 = true; state.forcePath = null; state.forceRank = 'Jedi in Hiding'; applyEffects({ happiness: -25 }); }
-          else { killCharacter('Hunted down while fleeing the Jedi purge'); }
-        } },
-      ],
-    };
-  }
-
   if (era.hasJedi && ['old-republic', 'fall-of-jedi'].includes(state.eraId) && !state.forcePath && state.forceTier !== 'Average' && state.age >= 1 && state.age <= 9 && chance(tierChance(0.05, 0.12, 0.22))) {
     return {
       title: 'A Visit from the Jedi',
@@ -489,12 +531,252 @@ function tierChance(avg, sensitive, gifted) {
   return avg;
 }
 
+/* ---------- absolute timeline: global canon events ---------- */
+function currentYear() { return state.birthYear + state.age; }
+
+function checkGlobalEvent() {
+  const year = currentYear();
+  const candidates = GLOBAL_EVENTS.filter(e => e.year <= year && !state.firedGlobalEvents.includes(e.id));
+  if (!candidates.length) return null;
+  const presentMatch = candidates.find(e => e.presentWorlds.includes(state.homeworld));
+  const due = presentMatch || candidates.slice().sort((a, b) => a.year - b.year)[0];
+  state.firedGlobalEvents.push(due.id);
+  if (due.id === 'GE_ORDER_66') return buildOrder66Choice();
+  if (due.id === 'GE_JEDHA' && due.presentWorlds.includes(state.homeworld)) return buildJedhaChoice();
+  resolveGlobalEvent(due);
+  return 'resolved';
+}
+
+function resolveGlobalEvent(event) {
+  const present = event.presentWorlds.includes(state.homeworld);
+  const variantKey = present ? 'present' : (event.presentWorlds.length ? (chance(0.4) ? 'nearby' : 'distant') : 'distant');
+  log(event[variantKey]);
+  applyEffects(event.effects);
+  if (present && event.instantDeathIfPresent) {
+    killCharacter(`Killed in the destruction of ${state.homeworld}`);
+  }
+}
+
+function buildOrder66Choice() {
+  if (state.forcePath === 'jedi') {
+    return {
+      title: 'Order 66',
+      text: "Your commander's comm chirps. He looks at you, and something behind his eyes has changed. 'Good soldiers follow orders.'",
+      options: [
+        { label: 'Run for the gunship', run: () => {
+          if (chance(0.4)) { log('You bolted for the gunship and made it off-world just ahead of blaster fire, one of the fortunate few.'); addFlags(['survived_order_66']); applyEffects({ happiness: -20 }); }
+          else killCharacter('Cut down by clone troopers during Order 66');
+        } },
+        { label: 'Ignite your saber and fight', run: () => {
+          if (chance(0.35)) { log('You cut your way clear, but the cost was steep, and the Order you knew is already gone.'); addFlags(['survived_order_66']); applyEffects({ health: -25, happiness: -25 }); }
+          else killCharacter('Killed fighting off Order 66');
+        } },
+        { label: 'Reach out to your clone friend through the Force', run: () => {
+          if (chance(0.5)) { log("For one impossible moment, your friend's hand shakes on the trigger, and you run while he still can't fire. You'll never know if he meant to let you go."); addFlags(['survived_order_66']); applyEffects({ happiness: -15 }); }
+          else killCharacter('Betrayed by the order in his own soldier\'s mind during Order 66');
+        } },
+      ],
+    };
+  }
+  if (hasFlag('clone')) {
+    return {
+      title: 'Order 66',
+      text: "Execute Order 66. The words arrive over the comm and your hands are already moving before you've decided anything at all.",
+      options: [
+        { label: '(Chip intact) Fire', run: () => {
+          log('The chip did its work. You fired on your own general without a moment\'s hesitation you can remember.');
+          addFlags(['executed_order_66']);
+          applyEffects({ alignment: -5, happiness: -10 });
+        } },
+        { label: '(Chip removed) Refuse and help your general escape', run: () => {
+          if (hasFlag('chip_removed')) {
+            log('With your chip removed, you refused the order and helped your general escape — a death sentence if anyone ever found out.');
+            addFlags(['refused_order_66']);
+            applyEffects({ alignment: 10, happiness: 5 });
+          } else {
+            log('You tried to resist the order, but the chip was still active. Your body obeyed before your mind could catch up.');
+            addFlags(['executed_order_66']);
+            applyEffects({ alignment: -5, happiness: -15 });
+          }
+        } },
+      ],
+    };
+  }
+  return {
+    title: 'Order 66',
+    text: "The HoloNet says the Jedi tried to assassinate the Chancellor. Now a wounded Jedi is hiding somewhere in your district, and clone troopers are searching house to house.",
+    options: [
+      { label: 'Hide them', run: () => { log('You hid the fugitive Jedi at great personal risk.'); addFlags(['hid_a_jedi']); applyEffects({ happiness: -5 }); } },
+      { label: 'Turn them in', run: () => { log('You turned the Jedi over to the clone troopers for a reward.'); applyEffects({ wealth: 2000, alignment: -15, happiness: -5 }); } },
+      { label: 'Look away', run: () => { log('You looked away and pretended you never saw anything.'); applyEffects({ happiness: -5 }); } },
+    ],
+  };
+}
+
+function buildJedhaChoice() {
+  return {
+    title: "Jedha City",
+    text: "The Empire has tested something terrible on Jedha City. The ground itself seems to be catching fire behind you.",
+    options: [
+      { label: "Run for Saw's Partisan tunnels", run: () => {
+        if (chance(0.65)) { log("You made it into the Partisans' tunnel network moments before the blast wave hit."); addFlags(['fled_jedha']); applyEffects({ happiness: -8 }); }
+        else killCharacter('Killed in the destruction of Jedha City');
+      } },
+      { label: 'Try to reach a ship off-world', run: () => {
+        if (chance(0.5)) { log('You threw yourself aboard a departing freighter as Jedha City disappeared behind you.'); addFlags(['fled_jedha']); applyEffects({ happiness: -8, wealth: -200 }); }
+        else killCharacter('Killed in the destruction of Jedha City');
+      } },
+    ],
+  };
+}
+
+/* ---------- Legend flagship arcs ---------- */
+function checkLegendArcBeat() {
+  if (state.canonMode !== 'LEGEND') return null;
+  const year = currentYear();
+  if (!state.activeLegendArc) {
+    for (const arcId of Object.keys(LEGEND_ARCS)) {
+      if (state.completedLegendArcs.includes(arcId)) continue;
+      const arc = LEGEND_ARCS[arcId];
+      if (year < arc.triggerYear) continue;
+      if (!arc.triggerFlags.some(f => hasFlag(f))) continue;
+      state.activeLegendArc = { id: arcId, beatIndex: 0 };
+      break;
+    }
+  }
+  if (!state.activeLegendArc) return null;
+  const arc = LEGEND_ARCS[state.activeLegendArc.id];
+  const beat = arc.beats[state.activeLegendArc.beatIndex];
+  if (!beat) { state.completedLegendArcs.push(state.activeLegendArc.id); state.activeLegendArc = null; return null; }
+  if (year < beat.year) return null;
+  if (beat.requiresFlag && !hasFlag(beat.requiresFlag)) {
+    state.completedLegendArcs.push(state.activeLegendArc.id);
+    state.activeLegendArc = null;
+    return null;
+  }
+  return {
+    title: beat.title,
+    text: beat.text,
+    options: beat.options.map(opt => ({
+      label: opt.label,
+      run: () => {
+        const success = opt.successChance !== undefined ? chance(opt.successChance) : true;
+        const effects = success ? opt.effects : (opt.failEffects || {});
+        const message = success ? opt.log : (opt.failLog || opt.log);
+        applyEffects(effects);
+        log(message);
+        if (!success && opt.fatal) { killCharacter('Struck down for reaching beyond your grasp'); }
+        if (state.activeLegendArc) state.activeLegendArc.beatIndex++;
+      },
+    })),
+  };
+}
+
+/* ---------- condensed origin-driven arcs (slave / mando / clone) ---------- */
+const CONDENSED_ARCS = { slave: SLAVE_ARC, mando: MANDO_ARC, clone: CLONE_ARC };
+function checkCondensedArcBeat() {
+  for (const key of Object.keys(CONDENSED_ARCS)) {
+    const idx = state.arcProgress[key];
+    if (idx === undefined || idx === null) continue;
+    const arc = CONDENSED_ARCS[key];
+    const beat = arc.beats[idx];
+    if (!beat) { state.arcProgress[key] = null; continue; }
+    if (state.age < beat.ageOffset) continue;
+    const options = beat.options.filter(o => !o.requiresFlag || hasFlag(o.requiresFlag)).filter(o => !o.requiresNotFlag || !hasFlag(o.requiresNotFlag));
+    if (!options.length) { state.arcProgress[key] = idx + 1; continue; }
+    return {
+      title: beat.title,
+      text: beat.text,
+      options: options.map(opt => ({
+        label: opt.label,
+        run: () => {
+          const success = opt.successChance !== undefined ? chance(opt.successChance) : true;
+          const effects = success ? opt.effects : (opt.failEffects || {});
+          const message = success ? opt.log : (opt.failLog || opt.log);
+          applyEffects(effects);
+          log(message);
+          state.arcProgress[key] = idx + 1;
+        },
+      })),
+    };
+  }
+  return null;
+}
+
+/* ---------- named canon character encounters ---------- */
+function eligibleCharacters() {
+  const year = currentYear();
+  return CHARACTERS.filter(c => {
+    if (!c.eras.includes(state.eraId)) return false;
+    if (c.worlds.length && !c.worlds.includes(state.homeworld)) return false;
+    if (c.birthYear !== null && c.birthYear > year) return false;
+    if (c.deathYear !== null && c.deathYear < year) return false;
+    return true;
+  });
+}
+function meetCharacter(id) {
+  const c = CHARACTERS.find(x => x.id === id);
+  if (!c) return;
+  log(`You crossed paths with ${c.name}.`);
+  applyEffects({ happiness: 4 });
+  addFlags([`met_${id}`]);
+  render();
+}
+function trainWithCharacter(id) {
+  const c = CHARACTERS.find(x => x.id === id);
+  if (!c || !c.verbs.train) return;
+  log(`You spent time training under ${c.name}.`);
+  applyEffects({ forcePower: 6, smarts: 3, happiness: 3 });
+  addFlags([`trained_with_${id}`]);
+  render();
+}
+function dateCharacter(id) {
+  const c = CHARACTERS.find(x => x.id === id);
+  if (!c) return;
+  if (!canRomanceCharacter(state.age, state.canonMode, c, currentYear())) {
+    log(`It wasn't the right time for that with ${c.name}.`);
+    render();
+    return;
+  }
+  state.relationships.romanticInterest = { name: c.name, species: '', job: '', canonId: c.id };
+  log(`You and ${c.name} grew close.`);
+  applyEffects({ happiness: 8 });
+  render();
+}
+function fightCharacter(id) {
+  const c = CHARACTERS.find(x => x.id === id);
+  if (!c || !c.verbs.fight) return;
+  const win = chance(0.5);
+  if (win) {
+    log(`You held your own against ${c.name}.`);
+    applyEffects({ happiness: 5, forcePower: 3 });
+    if (state.canonMode === 'LEGEND' && c.verbs.fight === 'duel' && canKillCharacter(c, state.canonMode, currentYear()) && chance(0.1)) {
+      log(`In a shocking turn, you struck down ${c.name}. The galaxy's story bends around what you've done.`);
+      addFlags([`killed_${id}`]);
+      applyEffects({ alignment: -10 });
+    }
+  } else {
+    log(`${c.name} bested you. You live to tell the story, at least.`);
+    applyEffects({ health: -10, happiness: -5 });
+  }
+  render();
+}
+
 /* ---------- death ---------- */
 function killCharacter(cause) {
   state.alive = false;
   state.deathAge = state.age;
   state.deathCause = cause;
   log(`${cause}.`);
+  saveLegacy();
+}
+function saveLegacy() {
+  try {
+    let type = null;
+    if (state.forcePath === 'jedi' && (state.forceRank === 'Jedi Master')) type = 'jedi_master';
+    else if (state.forcePath === 'sith' && state.forceRank === 'Sith Lord') type = 'sith_lord';
+    if (type) localStorage.setItem(LEGACY_KEY, JSON.stringify({ type }));
+  } catch (e) { /* ignore */ }
 }
 function checkDeath() {
   if (!state.alive) return true;
@@ -556,6 +838,36 @@ function ageUp() {
   updateForceRank();
 
   if (checkDeath()) { render(); save(); return; }
+
+  const globalResult = checkGlobalEvent();
+  if (globalResult && globalResult !== 'resolved') {
+    pendingChoice = globalResult;
+    render();
+    save();
+    return;
+  }
+  if (globalResult === 'resolved') {
+    if (checkDeath()) { render(); save(); return; }
+    render();
+    save();
+    return;
+  }
+
+  const arcBeat = checkLegendArcBeat();
+  if (arcBeat) {
+    pendingChoice = arcBeat;
+    render();
+    save();
+    return;
+  }
+
+  const condensedBeat = checkCondensedArcBeat();
+  if (condensedBeat) {
+    pendingChoice = condensedBeat;
+    render();
+    save();
+    return;
+  }
 
   const special = checkSpecialEvent();
   if (special) {

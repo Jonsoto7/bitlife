@@ -20,6 +20,17 @@ From there, you age up year by year through a life full of randomized events, a 
 
 Progress auto-saves to your browser's local storage, so you can close the tab and pick your life back up later.
 
+### The canon timeline
+
+At character creation you also pick a mode:
+
+- **Canon Lock** — the big galactic events happen exactly when and how they did on screen (Order 66, the destruction of Alderaan, the Battle of Endor...). You can live through them, but you can't change who lives or dies.
+- **Legend Mode** — unlocks alternate paths, including training Anakin Skywalker, Luke Skywalker, or Ben Solo yourself instead of their canon masters, or becoming Vader's secret apprentice.
+
+Every life runs on the real BBY/ABY calendar, so ~45 canon events fire on their actual year no matter where you are in the galaxy — you'll experience them differently depending on whether you're standing on the world where it happens, nearby, or just hearing about it over the HoloNet. You'll also encounter dozens of named characters from the films and shows (with Meet/Train/Date/Fight options, era- and world-gated), plus dedicated origin-driven storylines for slaves, clones, and Mandalorians. Romance with a named character is hard-gated in code — it only unlocks once both you and they are 18 or older in that in-game year, never just suggested in flavor text.
+
+`ai_expand`-style branching moments from the design doc are hand-authored here rather than generated live, since this is a static site with no backend to safely call an AI model.
+
 ## Running it
 
 Just open `index.html` in a browser, or serve the folder with any static file server:
@@ -33,7 +44,8 @@ python3 -m http.server 8000
 
 - `index.html` — page structure
 - `style.css` — theme and layout
-- `data.js` — eras, species, jobs, names, and event content
+- `data.js` — eras, species, jobs, names, and generic event content
+- `nodes.js` — the canon timeline system: global events, origins, worlds, named characters, and Legend-mode arcs
 - `game.js` — game state, character generation, and simulation logic
 - `ui.js` — DOM rendering and event wiring
 

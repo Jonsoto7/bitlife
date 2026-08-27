@@ -28,6 +28,12 @@
         <option value="random" selected>Let the Force Decide</option>
       </select>
 
+      <label class="field-label" for="setup-canon-mode">Canon Mode</label>
+      <select id="setup-canon-mode" class="field-input">
+        <option value="CANON_LOCK" selected>Canon Lock — live through history as it happened</option>
+        <option value="LEGEND">Legend Mode — you can rewrite it</option>
+      </select>
+
       <div class="setup-buttons">
         <button id="btn-randomize" class="action-btn">🎲 Randomize Name</button>
         <button id="btn-begin" class="action-btn primary">Begin Your Life</button>
@@ -84,12 +90,14 @@
           <button class="tab-btn" data-tab="career">Career</button>
           <button class="tab-btn" data-tab="relationships">Relationships</button>
           <button class="tab-btn" data-tab="assets">Assets</button>
+          <button class="tab-btn" data-tab="encounters">Encounters</button>
         </nav>
         <div id="panel-story" class="tab-panel"></div>
         <div id="panel-activities" class="tab-panel hidden"></div>
         <div id="panel-career" class="tab-panel hidden"></div>
         <div id="panel-relationships" class="tab-panel hidden"></div>
         <div id="panel-assets" class="tab-panel hidden"></div>
+        <div id="panel-encounters" class="tab-panel hidden"></div>
       </main>
     </div>
   </div>
@@ -122,6 +130,7 @@
   </div>
 
   <script src="data.js"></script>
+  <script src="nodes.js"></script>
   <script src="game.js"></script>
   <script src="ui.js"></script>
 </body>
